@@ -3,6 +3,8 @@ from discord import app_commands
 from discord.ui import Button, View, Modal, TextInput
 import os
 from dotenv import load_dotenv
+from flask import Flask
+import threading
 
 # โหลดค่าจากไฟล์ .env
 load_dotenv()
@@ -14,6 +16,22 @@ intents.members = True
 
 client = discord.Client(intents=intents)
 tree = app_commands.CommandTree(client)
+
+# ---- จำลองเซิร์ฟเวอร์ Flask เพื่อให้ Render รักษาการทำงานไว้ ----
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ Discord bot is running on Render!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+
+def keep_alive():
+    thread = threading.Thread(target=run_flask)
+    thread.start()
+
+# --------------------------------------------------------------
 
 # ชื่อยศพนักงาน
 STAFF_ROLE_NAME = "･ﾟ✧พนักงานลูกไก่ ☆"
@@ -76,6 +94,12 @@ class TicketModal(Modal, title='เปิดตั๋วงาน'):
         # เพิ่ม Permission สำหรับ Staff (ถ้ามี Role)
         if staff_role:
             overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        
+        # ป้องกันผู้ใช้เปิดตั๋วซ้ำ
+        for ch in guild.text_channels:
+            if ch.name == f'ticket-{user.name.lower()}':
+                await interaction.followup.send(f'❌ คุณมีตั๋วเปิดอยู่แล้ว: {ch.mention}', ephemeral=True)
+                return
         
         # สร้างห้องตั๋ว
         ticket_channel = await guild.create_text_channel(
@@ -167,6 +191,9 @@ async def on_ready():
     await tree.sync()
     print(f'✅ บอทพร้อมใช้งาน: {client.user}')
     print(f'📡 เข้าร่วมเซิร์ฟเวอร์: {len(client.guilds)} เซิร์ฟเวอร์')
+
+# รันเว็บเซิร์ฟเวอร์ Flask ก่อน
+keep_alive()
 
 # รันบอท (อ่าน Token จากไฟล์ .env)
 TOKEN = os.getenv('DISCORD_TOKEN')
