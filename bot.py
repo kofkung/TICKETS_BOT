@@ -1,3 +1,5 @@
+import threading
+from flask import Flask
 import discord
 from discord import app_commands
 from discord.ui import Button, View, Modal, TextInput
@@ -7,7 +9,18 @@ from dotenv import load_dotenv
 # โหลดค่าจากไฟล์ .env
 load_dotenv()
 
-# ตั้งค่า Intents
+# ---------- Flask ----------
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "✅ Discord Bot is running on Render"
+
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+# ---------- Discord Bot Setup ----------
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -147,11 +160,16 @@ async def on_ready():
     await tree.sync()
     print(f'✅ บอทพร้อมใช้งาน: {client.user}')
     print(f'📡 เข้าร่วมเซิร์ฟเวอร์: {len(client.guilds)} เซิร์ฟเวอร์')
-    # บอทจะทำงานต่อเนื่องบน Render โดยไม่ต้องมี Flask หรือ cron
 
-# ---- เริ่มรันบอท ----
-TOKEN = os.getenv('DISCORD_TOKEN')
-if not TOKEN:
-    raise ValueError("❌ ไม่พบ DISCORD_TOKEN ในไฟล์ .env!")
 
-client.run(TOKEN)
+# ---------- Run ----------
+if __name__ == '__main__':
+    TOKEN = os.getenv('DISCORD_TOKEN')
+    if not TOKEN:
+        raise ValueError("❌ ไม่พบ DISCORD_TOKEN ในไฟล์ .env!")
+    
+    # รัน Flask ใน Thread แยก
+    threading.Thread(target=run_web, daemon=True).start()
+    
+    # รันบอท Discord
+    client.run(TOKEN)
