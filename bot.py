@@ -100,25 +100,7 @@ class TicketModal(Modal, title='เปิดตั๋วงาน'):
         embed.set_thumbnail(url=user.display_avatar.url)
         embed.set_footer(text=f'เปิดโดย: {user.name}', icon_url=user.display_avatar.url)
 
-        close_button = Button(label='✅ จบงาน', style=discord.ButtonStyle.success)
-
-        async def close_callback(button_interaction: discord.Interaction):
-            staff_role = discord.utils.get(guild.roles, name=STAFF_ROLE_NAME)
-            if staff_role not in button_interaction.user.roles:
-                await button_interaction.response.send_message(
-                    '❌ เฉพาะพนักงานเท่านั้นที่สามารถกด "จบงาน" ได้!',
-                    ephemeral=True
-                )
-                return
-
-            await button_interaction.response.send_message('✅ ปิดตั๋วสำเร็จ! กำลังลบห้อง...', ephemeral=True)
-            await ticket_channel.delete()
-
-        close_button.callback = close_callback
-        view = View(timeout=None)
-        view.add_item(close_button)
-
-        await ticket_channel.send(embed=embed, view=view)
+        await ticket_channel.send(embed=embed)
         await interaction.response.send_message(f'✅ เปิดตั๋วสำเร็จ! ห้องของคุณ: {ticket_channel.mention}', ephemeral=True)
 
 
@@ -154,13 +136,48 @@ async def setup_ticket(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, view=TicketButton())
 
+# -------------------- END TICKET COMMAND --------------------
+
+class EndTicketView(View):
+    def __init__(self, channel):
+        super().__init__(timeout=None)
+        self.channel = channel
+
+    @discord.ui.button(label='✅ จบงาน', style=discord.ButtonStyle.success)
+    async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        staff_role = discord.utils.get(interaction.guild.roles, name=STAFF_ROLE_NAME)
+        if staff_role not in interaction.user.roles:
+            await interaction.response.send_message('❌ เฉพาะพนักงานเท่านั้นที่สามารถปิดตั๋วได้!', ephemeral=True)
+            return
+
+        await interaction.response.send_message('✅ กำลังลบห้องนี้...', ephemeral=True)
+        await self.channel.delete()
+
+@tree.command(name="end_ticket", description="แสดงปุ่มจบงาน (เฉพาะพนักงาน)")
+async def end_ticket(interaction: discord.Interaction):
+    staff_role = discord.utils.get(interaction.guild.roles, name=STAFF_ROLE_NAME)
+    if staff_role not in interaction.user.roles:
+        await interaction.response.send_message("❌ เฉพาะพนักงานเท่านั้นที่ใช้คำสั่งนี้ได้!", ephemeral=True)
+        return
+
+    if not interaction.channel.name.startswith("ticket-"):
+        await interaction.response.send_message("❌ คำสั่งนี้ต้องใช้ในห้องตั๋วเท่านั้น!", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🔚 ปิดตั๋วงาน",
+        description="กดปุ่มด้านล่างเพื่อ **จบงานและลบห้องนี้**",
+        color=discord.Color.red()
+    )
+    await interaction.response.send_message(embed=embed, view=EndTicketView(interaction.channel))
+
+# ------------------------------------------------------------
 
 @client.event
 async def on_ready():
     await tree.sync()
     print(f'✅ บอทพร้อมใช้งาน: {client.user}')
     print(f'📡 เข้าร่วมเซิร์ฟเวอร์: {len(client.guilds)} เซิร์ฟเวอร์')
-
 
 # ---------- Run ----------
 if __name__ == '__main__':
